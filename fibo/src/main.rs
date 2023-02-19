@@ -14,7 +14,7 @@ fn fibo(n: u32) -> u32 {
     let mut b: u32 = 1;
     for _ in 2..=n {
         let temp = b;
-        b = a.saturating_add(b);
+        b = a.checked_add(b).unwrap();
         a = temp;
     }
     b
