@@ -1,0 +1,3 @@
+[build]
+target = "thumbv7em-none-eabihf" # Cortex-M4F/M7F (with FPU)
+
