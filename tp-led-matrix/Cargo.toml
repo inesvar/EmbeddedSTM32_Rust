@@ -6,5 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cortex-m-rt = "0.7.3"
 micromath = "2.0.0"
 panic-halt = "0.2.0"
+stm32l4 = { version = "0.15.1", features = ["stm32l4x5"] }
+
+[[bin]]
+name = "tp-led-matrix"
