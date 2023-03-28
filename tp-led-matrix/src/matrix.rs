@@ -106,9 +106,9 @@ impl Matrix {
 
     /// Send a byte on SDA starting with the MSB and pulse SCK high after each bit
     fn send_byte(&mut self, pixel: u8) {
-        defmt::println!("Pixel: {}", pixel);
+        //defmt::println!("Pixel: {}", pixel);
         for i in 0..8 {
-            self.sda.set_state((pixel & (1 << (7 - i)) == 1).into());
+            self.sda.set_state(((pixel >> (7 - i)) & 1 == 1).into());
             self.pulse_sck();
         }
     }
@@ -119,17 +119,16 @@ impl Matrix {
     pub fn send_row(&mut self, row: usize, pixels: &[Color]) {
 
         // Send the pixels
-        for pixel in pixels {
-            //let pixel = pixel.gamma_correct();
-            defmt::println!("Pixel: {} {} {}", pixel.r, pixel.g, pixel.b);
-            self.send_byte(pixel.b);
-            self.send_byte(pixel.g);
-            self.send_byte(pixel.r);
+        for i in 0..8 {
+            self.send_byte(pixels[7-i].b);
+            self.send_byte(pixels[7-i].g);
+            self.send_byte(pixels[7-i].r);
+            if i == 4 {
+                // Deactivate the previous row
+                let previous_row = if row == 0 { 7 } else { row - 1 };
+                self.row(previous_row, PinState::Low);
+            }
         }
-
-        // Deactivate the previous row
-        let previous_row = if row == 0 { 7 } else { row - 1 };
-        self.row(previous_row, PinState::Low);
 
         // Activate the new row
         self.row(row, PinState::High);
@@ -154,17 +153,10 @@ impl Matrix {
     pub fn display_image(&mut self, image: &Image) {
         // Do not forget that image.row(n) gives access to the content of row n,
         // and that self.send_row() uses the same format.
-        //loop {
-            for row in 0..1 {
+        loop {
+            for row in 0..8 {
                 self.send_row(row, image.row(row));
-                /*for _ in 0..1 {
-                    let _ = 1 + 1;
-                }*/
-                /*defmt::println!("row: {}", row);
-                for i in 0..8 {
-                    defmt::println!("{}, {}, {}", image.row(row)[i].r, image.row(row)[i].g, image.row(row)[i].b);
-                }*/
             }
-        //}
+        }
     }
 }

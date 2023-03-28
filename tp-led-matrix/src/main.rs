@@ -57,10 +57,10 @@ fn run(_cp: pac::CorePeripherals, dp: pac::Peripherals) -> ! {
     );
 
     // Create a blue gradient
-    let blue_gradient = Image::gradient(BLUE);
+    let blue_gradient = Image::gradient(BLUE).gamma_correct();
 
     // Display the gradient
-    matrix.display_image(&Image::new_solid(BLUE).gamma_correct());
+    matrix.display_image(&blue_gradient);
     
     panic!("The program stopped");
 
