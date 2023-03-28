@@ -54,7 +54,7 @@ impl Matrix {
         // set the pins to very high speed mode, set the initial state, set the pin to output
         let sb = pc5.into_push_pull_output_in_state(gpioc_moder, gpioc_otyper, PinState::High).set_speed(Speed::VeryHigh);
         let lat = pc4.into_push_pull_output_in_state(gpioc_moder, gpioc_otyper, PinState::High).set_speed(Speed::VeryHigh);
-        let mut rst = pc3.into_push_pull_output(gpioc_moder, gpioc_otyper).set_speed(Speed::VeryHigh);
+        let rst = pc3.into_push_pull_output(gpioc_moder, gpioc_otyper).set_speed(Speed::VeryHigh);
         let sck = pb1.into_push_pull_output(gpiob_moder, gpiob_otyper).set_speed(Speed::VeryHigh);
         let sda = pa4.into_push_pull_output(gpioa_moder, gpioa_otyper).set_speed(Speed::VeryHigh);
         let c0 = pb2.into_push_pull_output(gpiob_moder, gpiob_otyper).set_speed(Speed::VeryHigh);
@@ -66,13 +66,15 @@ impl Matrix {
         let c6 = pb0.into_push_pull_output(gpiob_moder, gpiob_otyper).set_speed(Speed::VeryHigh);
         let c7 = pa3.into_push_pull_output(gpioa_moder, gpioa_otyper).set_speed(Speed::VeryHigh);
 
+        // create matrix
+        let mut matrix = Matrix { sb, lat, rst, sck, sda, c0, c1, c2, c3, c4, c5, c6, c7 };
+        
         // wait and then set rst high
         let mut delay = Delay::new(clocks);
         delay.delay_ms(100u16);
-        rst.set_high();
+        matrix.rst.set_high();
 
         // initialize bank0
-        let mut matrix = Matrix { sb, lat, rst, sck, sda, c0, c1, c2, c3, c4, c5, c6, c7 };
         matrix.init_bank0();
         matrix
     }
@@ -150,7 +152,7 @@ impl Matrix {
     }
 
     /// Display a full image, row by row, as fast as possible.
-    pub fn display_image(&mut self, image: &Image) {
+    pub fn display_image(&mut self, image: &Image) -> ! {
         // Do not forget that image.row(n) gives access to the content of row n,
         // and that self.send_row() uses the same format.
         loop {
