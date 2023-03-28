@@ -10,9 +10,9 @@ use core::ops::Mul;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
 pub const RED: Color = Color { r: 255, g: 0, b: 0 };
@@ -76,9 +76,20 @@ impl Image {
         for row in 0..8 {
             for col in 0..8 {
                 gradient[(row, col)] = gradient[(row, col)] / (1 + row * row + col) as f32;
+                //defmt::println!("gradient[{}, {}] = {}, {}, {}", row, col, gradient[(row, col)].r, gradient[(row, col)].g, gradient[(row, col)].b);
             }
         }
         gradient
+    }
+
+    pub fn gamma_correct(&self) -> Self {
+        let mut corrected = Image::default();
+        for row in 0..8 {
+            for col in 0..8 {
+                corrected[(row, col)] = self[(row, col)].gamma_correct();
+            }
+        }
+        corrected
     }
 }
 
