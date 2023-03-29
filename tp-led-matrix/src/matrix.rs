@@ -125,7 +125,7 @@ impl Matrix {
             self.send_byte(pixels[7-i].b);
             self.send_byte(pixels[7-i].g);
             self.send_byte(pixels[7-i].r);
-            if i == 4 {
+            if i == 6 {
                 // Deactivate the previous row
                 let previous_row = if row == 0 { 7 } else { row - 1 };
                 self.row(previous_row, PinState::Low);

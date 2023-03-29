@@ -8,39 +8,67 @@ use defmt_rtt as _;
 pub use tp_led_matrix::image::*;
 use tp_led_matrix::matrix::Matrix;
 
-#[rtic::app(device = pac)]
+#[rtic::app(device = pac, dispatchers = [USART2])]
 mod app {
 
     use super::*;
+    use dwt_systick_monotonic::DwtSystick;
+    use dwt_systick_monotonic::ExtU32;
 
     #[shared]
     struct Shared {}
 
     #[local]
     struct Local {
-        matrix: Matrix
+        matrix: Matrix,
+        image: Image,
     }
 
     #[init]
     fn init(cx: init::Context) -> (Shared, Local, init::Monotonics) {
         defmt::info!("defmt correctly initialized");
     
-        let _cp = cx.core;
+        let mut cp = cx.core;
         let dp = cx.device;
-    
+
+        // Create an instance of the timer
+        let mut mono = DwtSystick::new(&mut cp.DCB, cp.DWT, cp.SYST, 80_000_000);
+
         // Initialize the clocks, hardware and matrix using your existing code
-        let matrix = run(_cp, dp);
+        let matrix = run(dp);
+        let image :Image = Image::gradient(BLUE).gamma_correct();
+        
+        // Launch the display task
+        display::spawn(mono.now()).unwrap();
     
         // Return the resources and the monotonic timer
-        (Shared {}, Local { matrix }, init::Monotonics())
+        (Shared {}, Local { matrix, image }, init::Monotonics(mono))
     }
 
-    #[idle(local = [matrix])]
-    fn idle(cx: idle::Context) -> ! {
-        cx.local.matrix.display_image(&Image::gradient(BLUE).gamma_correct())
+    #[idle]
+    fn idle(_cx: idle::Context) -> ! {
+        loop {}
     }
 
-    fn run(_cp: pac::CorePeripherals, dp: pac::Peripherals) -> Matrix {
+    #[task(local = [matrix, image, next_line: usize = 0])]
+    fn display(cx: display::Context, instant: Instant) {
+        // Display line next_line (cx.local.next_line) of
+        // the image (cx.local.image) on the matrix (cx.local.matrix).
+        // All those are mutable references.
+        cx.local.matrix.send_row(*cx.local.next_line, cx.local.image.row(*cx.local.next_line));
+        // Increment next_line up to 7 and wraparound to 0
+        *cx.local.next_line = (*cx.local.next_line + 1)%8;
+        // Spawn the display of the next row
+        let next_display :Instant = instant + 1.secs() / 480;
+        display::spawn_at(next_display, next_display).unwrap();
+    }
+
+
+    #[monotonic(binds = SysTick, default = true)]
+    type MyMonotonic = DwtSystick<80_000_000>;
+    type Instant = <MyMonotonic as rtic::Monotonic>::Instant;
+
+    fn run(dp: pac::Peripherals) -> Matrix {
         // Get high-level representations of hardware modules
         let mut rcc = dp.RCC.constrain();
         let mut flash = dp.FLASH.constrain();
