@@ -76,7 +76,6 @@ impl Image {
         for row in 0..8 {
             for col in 0..8 {
                 gradient[(row, col)] = gradient[(row, col)] / (1 + row * row + col) as f32;
-                //defmt::println!("gradient[{}, {}] = {}, {}, {}", row, col, gradient[(row, col)].r, gradient[(row, col)].g, gradient[(row, col)].b);
             }
         }
         gradient

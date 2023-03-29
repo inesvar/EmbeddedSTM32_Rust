@@ -8,7 +8,7 @@ use defmt_rtt as _;
 pub use tp_led_matrix::image::*;
 use tp_led_matrix::matrix::Matrix;
 
-#[rtic::app(device = pac, dispatchers = [USART2])]
+#[rtic::app(device = pac, dispatchers = [USART2, USART3])]
 mod app {
 
     use super::*;
@@ -16,12 +16,13 @@ mod app {
     use dwt_systick_monotonic::ExtU32;
 
     #[shared]
-    struct Shared {}
+    struct Shared {
+        image: Image,
+    }
 
     #[local]
     struct Local {
         matrix: Matrix,
-        image: Image,
     }
 
     #[init]
@@ -36,13 +37,14 @@ mod app {
 
         // Initialize the clocks, hardware and matrix using your existing code
         let matrix = run(dp);
-        let image :Image = Image::gradient(BLUE).gamma_correct();
+        let image :Image = Image::default();
         
         // Launch the display task
         display::spawn(mono.now()).unwrap();
+        rotate_image::spawn(mono.now(), 0).unwrap();
     
         // Return the resources and the monotonic timer
-        (Shared {}, Local { matrix, image }, init::Monotonics(mono))
+        (Shared { image }, Local { matrix }, init::Monotonics(mono))
     }
 
     #[idle]
@@ -50,12 +52,16 @@ mod app {
         loop {}
     }
 
-    #[task(local = [matrix, image, next_line: usize = 0])]
-    fn display(cx: display::Context, instant: Instant) {
+    #[task(local = [matrix, next_line: usize = 0], shared = [image], priority = 2)]
+    fn display(mut cx: display::Context, instant: Instant) {
         // Display line next_line (cx.local.next_line) of
         // the image (cx.local.image) on the matrix (cx.local.matrix).
         // All those are mutable references.
-        cx.local.matrix.send_row(*cx.local.next_line, cx.local.image.row(*cx.local.next_line));
+        cx.shared.image.lock(|image| {
+            // Here you can use image, which is a &mut Image,
+            // to display the appropriate row
+            cx.local.matrix.send_row(*cx.local.next_line, image.row(*cx.local.next_line));
+        });
         // Increment next_line up to 7 and wraparound to 0
         *cx.local.next_line = (*cx.local.next_line + 1)%8;
         // Spawn the display of the next row
@@ -63,6 +69,21 @@ mod app {
         display::spawn_at(next_display, next_display).unwrap();
     }
 
+    #[task(shared = [image])]
+    fn rotate_image(mut cx: rotate_image::Context, instant: Instant, parameter: usize) {
+        cx.shared.image.lock(|image| {
+            match parameter {
+                0 => *image = Image::gradient(RED).gamma_correct(),
+                1 => *image = Image::gradient(GREEN).gamma_correct(),
+                2 => *image = Image::gradient(BLUE).gamma_correct(),
+                _ => unreachable!(),
+            }
+        });
+        // Spawn the display of the next row
+        let next_display :Instant = instant + 1.secs();
+        let next_param = (parameter + 1)%3;
+        rotate_image::spawn_at(next_display, next_display, next_param).unwrap();
+    }
 
     #[monotonic(binds = SysTick, default = true)]
     type MyMonotonic = DwtSystick<80_000_000>;
