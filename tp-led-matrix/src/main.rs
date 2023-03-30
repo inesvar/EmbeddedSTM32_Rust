@@ -105,7 +105,7 @@ mod app {
         let mut gpioc = dp.GPIOC.split(&mut rcc.ahb2);
 
         // Construct the matrix
-        let matrix = Matrix::new(
+        Matrix::new(
             gpioa.pa2,
             gpioa.pa3,
             gpioa.pa4,
@@ -126,8 +126,6 @@ mod app {
             &mut gpioc.moder,
             &mut gpioc.otyper,
             clocks,
-        );
-
-        matrix
+        )
     }
 }
