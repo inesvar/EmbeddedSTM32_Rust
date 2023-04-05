@@ -26,6 +26,7 @@ mod app {
     struct Local {
         matrix: Matrix,
         usart1_rx: Rx<USART1>,
+        next_image: Image,
     }
 
     #[init]
@@ -76,7 +77,8 @@ mod app {
             &mut gpioc.otyper,
             clocks,
         );
-        let image :Image = Image::default();
+        let image: Image = Image::default();
+        let next_image: Image = Image::default();
 
         // Configure the serial port
         let tx = gpiob.pb6.into_alternate::<7>(&mut gpiob.moder, &mut gpiob.otyper, &mut gpiob.afrl);
@@ -89,10 +91,9 @@ mod app {
         
         // Launch the display task
         display::spawn(mono.now()).unwrap();
-        rotate_image::spawn(mono.now(), 0).unwrap();
     
         // Return the resources and the monotonic timer
-        (Shared { image }, Local { matrix, usart1_rx }, init::Monotonics(mono))
+        (Shared { image }, Local { matrix, usart1_rx, next_image }, init::Monotonics(mono))
     }
 
     #[idle]
@@ -117,20 +118,33 @@ mod app {
         display::spawn_at(next_display, next_display).unwrap();
     }
 
-    #[task(shared = [image])]
-    fn rotate_image(mut cx: rotate_image::Context, instant: Instant, parameter: usize) {
-        cx.shared.image.lock(|image| {
-            match parameter {
-                0 => *image = Image::gradient(RED).gamma_correct(),
-                1 => *image = Image::gradient(GREEN).gamma_correct(),
-                2 => *image = Image::gradient(BLUE).gamma_correct(),
-                _ => unreachable!(),
+    #[task(binds = USART1, local = [usart1_rx, next_image, next_pos: usize = 0], shared = [image])]
+    fn receive_byte(mut cx: receive_byte::Context) {
+        let next_pos: &mut usize = cx.local.next_pos;
+        let next_image: &mut Image = cx.local.next_image;
+        if let Ok(b) = cx.local.usart1_rx.read() {
+            // Handle the incoming byte according to the SE203 protocol
+            // and update next_image
+            // Do not forget that next_image.as_mut() might be handy here!
+            if b == 0xFF {
+                *next_pos = 0;
+                return;
             }
-        });
-        // Spawn the display of the next row
-        let next_display :Instant = instant + 1.secs();
-        let next_param = (parameter + 1)%3;
-        rotate_image::spawn_at(next_display, next_display, next_param).unwrap();
+            if *next_pos == 8 * 8 * 3 {
+                return;
+            }
+            next_image.as_mut()[*next_pos] = b;
+            *next_pos += 1;
+            // If the received image is complete, make it available to
+            // the display task.
+            if *next_pos == 8 * 8 * 3 {
+                cx.shared.image.lock(|image: &mut Image| {
+                    // Replace the image content by the new one, for example
+                    // by swapping them, and reset next_pos
+                    core::mem::swap(image, next_image);
+                });
+            }
+        }
     }
 
     #[monotonic(binds = SysTick, default = true)]
