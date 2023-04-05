@@ -1,9 +1,11 @@
 #![no_std]
 #![no_main]
 
-use stm32l4xx_hal::{pac, prelude::*};
+use stm32l4xx_hal::{pac, pac::USART1, prelude::*};
+use stm32l4xx_hal::serial::{Config, Event, Rx, Serial};
 use panic_probe as _;
 use defmt_rtt as _;
+
 
 pub use tp_led_matrix::image::*;
 use tp_led_matrix::matrix::Matrix;
@@ -23,6 +25,7 @@ mod app {
     #[local]
     struct Local {
         matrix: Matrix,
+        usart1_rx: Rx<USART1>,
     }
 
     #[init]
@@ -36,15 +39,60 @@ mod app {
         let mut mono = DwtSystick::new(&mut cp.DCB, cp.DWT, cp.SYST, 80_000_000);
 
         // Initialize the clocks, hardware and matrix using your existing code
-        let matrix = run(dp);
+        // Get high-level representations of hardware modules
+        let mut rcc = dp.RCC.constrain();
+        let mut flash = dp.FLASH.constrain();
+        let mut pwr = dp.PWR.constrain(&mut rcc.apb1r1);
+
+        // Setup the clocks at 80MHz using HSI (by default since HSE/MSI are not configured).
+        // The flash wait states will be configured accordingly.
+        let clocks = rcc.cfgr.sysclk(80.MHz()).freeze(&mut flash.acr, &mut pwr);
+        
+        // Split the GPIOs into individual pins
+        let mut gpioa = dp.GPIOA.split(&mut rcc.ahb2);
+        let mut gpiob = dp.GPIOB.split(&mut rcc.ahb2);
+        let mut gpioc = dp.GPIOC.split(&mut rcc.ahb2);
+
+        // Construct the matrix
+        let matrix = Matrix::new(
+            gpioa.pa2,
+            gpioa.pa3,
+            gpioa.pa4,
+            gpioa.pa5,
+            gpioa.pa6,
+            gpioa.pa7,
+            gpioa.pa15,
+            gpiob.pb0,
+            gpiob.pb1,
+            gpiob.pb2,
+            gpioc.pc3,
+            gpioc.pc4,
+            gpioc.pc5,
+            &mut gpioa.moder,
+            &mut gpioa.otyper,
+            &mut gpiob.moder,
+            &mut gpiob.otyper,
+            &mut gpioc.moder,
+            &mut gpioc.otyper,
+            clocks,
+        );
         let image :Image = Image::default();
+
+        // Configure the serial port
+        let tx = gpiob.pb6.into_alternate::<7>(&mut gpiob.moder, &mut gpiob.otyper, &mut gpiob.afrl);
+        let rx = gpiob.pb7.into_alternate::<7>(&mut gpiob.moder, &mut gpiob.otyper, &mut gpiob.afrl);
+
+        let usart1_config = Config::from(38_400.bps());
+        let mut serial = Serial::usart1(dp.USART1, (tx, rx), usart1_config, clocks, &mut rcc.apb2);
+        serial.listen(Event::Rxne);
+        let usart1_rx = serial.split().1;
         
         // Launch the display task
         display::spawn(mono.now()).unwrap();
         rotate_image::spawn(mono.now(), 0).unwrap();
     
         // Return the resources and the monotonic timer
-        (Shared { image }, Local { matrix }, init::Monotonics(mono))
+        (Shared { image }, Local { matrix, usart1_rx }, init::Monotonics(mono))
     }
 
     #[idle]
@@ -88,44 +136,4 @@ mod app {
     #[monotonic(binds = SysTick, default = true)]
     type MyMonotonic = DwtSystick<80_000_000>;
     type Instant = <MyMonotonic as rtic::Monotonic>::Instant;
-
-    fn run(dp: pac::Peripherals) -> Matrix {
-        // Get high-level representations of hardware modules
-        let mut rcc = dp.RCC.constrain();
-        let mut flash = dp.FLASH.constrain();
-        let mut pwr = dp.PWR.constrain(&mut rcc.apb1r1);
-
-        // Setup the clocks at 80MHz using HSI (by default since HSE/MSI are not configured).
-        // The flash wait states will be configured accordingly.
-        let clocks = rcc.cfgr.sysclk(80.MHz()).freeze(&mut flash.acr, &mut pwr);
-        
-        // Split the GPIOs into individual pins
-        let mut gpioa = dp.GPIOA.split(&mut rcc.ahb2);
-        let mut gpiob = dp.GPIOB.split(&mut rcc.ahb2);
-        let mut gpioc = dp.GPIOC.split(&mut rcc.ahb2);
-
-        // Construct the matrix
-        Matrix::new(
-            gpioa.pa2,
-            gpioa.pa3,
-            gpioa.pa4,
-            gpioa.pa5,
-            gpioa.pa6,
-            gpioa.pa7,
-            gpioa.pa15,
-            gpiob.pb0,
-            gpiob.pb1,
-            gpiob.pb2,
-            gpioc.pc3,
-            gpioc.pc4,
-            gpioc.pc5,
-            &mut gpioa.moder,
-            &mut gpioa.otyper,
-            &mut gpiob.moder,
-            &mut gpiob.otyper,
-            &mut gpioc.moder,
-            &mut gpioc.otyper,
-            clocks,
-        )
-    }
 }
