@@ -82,15 +82,21 @@ mod app {
             &mut gpioc.otyper,
             clocks,
         );
+
+        // Create the pool 
         let pool: Pool<Image> = Pool::new();
         unsafe {
             static mut MEMORY: MaybeUninit<[Node<Image>; 4]> = MaybeUninit::uninit();
             pool.grow_exact(&mut MEMORY);   // static mut access is unsafe
         }
-        let current_image = pool.alloc().unwrap().init(Image::default());
-        let rx_image = pool.alloc().unwrap().init(Image::default());
+
+        // Create the other shared variables
         let next_image: Option<Box<Image>> = None;
         let changes: u32 = 0;
+
+        // Create the local images
+        let current_image = pool.alloc().unwrap().init(Image::default());
+        let rx_image = pool.alloc().unwrap().init(Image::default());
 
         // Configure the serial port
         let tx = gpiob.pb6.into_alternate::<7>(&mut gpiob.moder, &mut gpiob.otyper, &mut gpiob.afrl);
@@ -101,7 +107,7 @@ mod app {
         serial.listen(Event::Rxne);
         let usart1_rx = serial.split().1;
         
-        // Launch the display task
+        // Launch the display task and the screensaver
         display::spawn(mono.now()).unwrap();
         screensaver::spawn(mono.now()).unwrap();
     
@@ -163,13 +169,11 @@ mod app {
                         // discard it
                         cx.shared.pool.lock(|pool: &mut Pool<Image>| {
                             pool.free(image);
-                            defmt::println!("receive_byte free");
                         })
                     }
                     // Obtain a new future_image from the pool and swap it with rx_image
                     cx.shared.pool.lock(|pool: &mut Pool<Image>| {
                         let mut future_image: Box<Image> = pool.alloc().unwrap().init(Image::default());
-                        defmt::println!("receive_byte alloc");
                         swap(&mut future_image, rx_image);
                         next_image.replace(future_image);
                         notice_change::spawn().unwrap();
@@ -191,8 +195,9 @@ mod app {
             // if a new image was received, update last_changes and return
             if changes != cx.local.last_changes {
                 *cx.local.last_changes = *changes;
-            } else { // otherwise, build a gradient
+            } else { 
                 cx.shared.pool.lock(|pool: &mut Pool<Image>| {
+                    // otherwise, build a gradient
                     let mut gradient: Box<Image> = pool.alloc().unwrap().init(Image::default());
                     // in the right color
                     match cx.local.color_index {
@@ -201,7 +206,6 @@ mod app {
                         2 => *gradient = Image::gradient(RED),
                         _ => unreachable!(),
                     };
-                    defmt::println!("screensaver alloc");
                     // increment the color_index
                     *cx.local.color_index = (*cx.local.color_index + 1)%3;
                     // and set the next_image
