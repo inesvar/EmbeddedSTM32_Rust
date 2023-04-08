@@ -23,6 +23,7 @@ mod app {
     struct Shared {
         pool: Pool<Image>,
         next_image: Option<Box<Image>>,
+        changes: u32,
     }
 
     #[local]
@@ -83,12 +84,13 @@ mod app {
         );
         let pool: Pool<Image> = Pool::new();
         unsafe {
-            static mut MEMORY: MaybeUninit<[Node<Image>; 3]> = MaybeUninit::uninit();
+            static mut MEMORY: MaybeUninit<[Node<Image>; 4]> = MaybeUninit::uninit();
             pool.grow_exact(&mut MEMORY);   // static mut access is unsafe
         }
         let current_image = pool.alloc().unwrap().init(Image::default());
         let rx_image = pool.alloc().unwrap().init(Image::default());
         let next_image: Option<Box<Image>> = None;
+        let changes: u32 = 0;
 
         // Configure the serial port
         let tx = gpiob.pb6.into_alternate::<7>(&mut gpiob.moder, &mut gpiob.otyper, &mut gpiob.afrl);
@@ -101,9 +103,10 @@ mod app {
         
         // Launch the display task
         display::spawn(mono.now()).unwrap();
+        screensaver::spawn(mono.now()).unwrap();
     
         // Return the resources and the monotonic timer
-        (Shared { pool, next_image }, Local { matrix, usart1_rx, current_image, rx_image }, init::Monotonics(mono))
+        (Shared { pool, next_image, changes }, Local { matrix, usart1_rx, current_image, rx_image }, init::Monotonics(mono))
     }
 
     #[idle]
@@ -160,17 +163,63 @@ mod app {
                         // discard it
                         cx.shared.pool.lock(|pool: &mut Pool<Image>| {
                             pool.free(image);
+                            defmt::println!("receive_byte free");
                         })
                     }
                     // Obtain a new future_image from the pool and swap it with rx_image
                     cx.shared.pool.lock(|pool: &mut Pool<Image>| {
                         let mut future_image: Box<Image> = pool.alloc().unwrap().init(Image::default());
+                        defmt::println!("receive_byte alloc");
                         swap(&mut future_image, rx_image);
                         next_image.replace(future_image);
+                        notice_change::spawn().unwrap();
                     });
                 });
             }
         }
+    }
+
+    #[task(shared = [changes], priority = 10)]
+    fn notice_change(mut cx: notice_change::Context) {
+        cx.shared.changes.lock(|changes: &mut u32|
+        *changes += 1)
+    }
+
+    #[task(shared = [changes, pool, next_image], local = [last_changes: u32 = 0, color_index: u32 = 0], priority = 10)]
+    fn screensaver(mut cx: screensaver::Context, instant: Instant) {
+        cx.shared.changes.lock(|changes: &mut u32|
+            // if a new image was received, update last_changes and return
+            if changes != cx.local.last_changes {
+                *cx.local.last_changes = *changes;
+            } else { // otherwise, build a gradient
+                cx.shared.pool.lock(|pool: &mut Pool<Image>| {
+                    let mut gradient: Box<Image> = pool.alloc().unwrap().init(Image::default());
+                    // in the right color
+                    match cx.local.color_index {
+                        0 => *gradient = Image::gradient(BLUE),
+                        1 => *gradient = Image::gradient(GREEN),
+                        2 => *gradient = Image::gradient(RED),
+                        _ => unreachable!(),
+                    };
+                    defmt::println!("screensaver alloc");
+                    // increment the color_index
+                    *cx.local.color_index = (*cx.local.color_index + 1)%3;
+                    // and set the next_image
+                    cx.shared.next_image.lock(|next_image: &mut Option<Box<Image>>|{
+                        if let Some(mut set_image) = next_image.take() {
+                            // potentially deallocating the previous one
+                            swap(&mut set_image, &mut gradient);
+                            pool.free(gradient);
+                        } else {
+                            next_image.replace(gradient);
+                        }
+                    })
+                });
+            });
+
+        // Spawn the display of the next row
+        let next_display :Instant = instant + 1.secs();
+        screensaver::spawn_at(next_display, next_display).unwrap();
     }
 
     #[monotonic(binds = SysTick, default = true)]
