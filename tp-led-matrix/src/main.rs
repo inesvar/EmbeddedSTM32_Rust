@@ -9,6 +9,8 @@ use defmt_rtt as _;
 
 pub use tp_led_matrix::image::*;
 use tp_led_matrix::matrix::Matrix;
+use core::mem::{swap, MaybeUninit};
+use heapless::pool::{Box, Node, Pool};
 
 #[rtic::app(device = pac, dispatchers = [USART2, USART3])]
 mod app {
@@ -19,14 +21,16 @@ mod app {
 
     #[shared]
     struct Shared {
-        image: Image,
+        pool: Pool<Image>,
+        next_image: Option<Box<Image>>,
     }
 
     #[local]
     struct Local {
         matrix: Matrix,
         usart1_rx: Rx<USART1>,
-        next_image: Image,
+        current_image: Box<Image>,
+        rx_image: Box<Image>,
     }
 
     #[init]
@@ -77,8 +81,14 @@ mod app {
             &mut gpioc.otyper,
             clocks,
         );
-        let image: Image = Image::default();
-        let next_image: Image = Image::default();
+        let pool: Pool<Image> = Pool::new();
+        unsafe {
+            static mut MEMORY: MaybeUninit<[Node<Image>; 3]> = MaybeUninit::uninit();
+            pool.grow_exact(&mut MEMORY);   // static mut access is unsafe
+        }
+        let current_image = pool.alloc().unwrap().init(Image::default());
+        let rx_image = pool.alloc().unwrap().init(Image::default());
+        let next_image: Option<Box<Image>> = None;
 
         // Configure the serial port
         let tx = gpiob.pb6.into_alternate::<7>(&mut gpiob.moder, &mut gpiob.otyper, &mut gpiob.afrl);
@@ -93,7 +103,7 @@ mod app {
         display::spawn(mono.now()).unwrap();
     
         // Return the resources and the monotonic timer
-        (Shared { image }, Local { matrix, usart1_rx, next_image }, init::Monotonics(mono))
+        (Shared { pool, next_image }, Local { matrix, usart1_rx, current_image, rx_image }, init::Monotonics(mono))
     }
 
     #[idle]
@@ -101,16 +111,22 @@ mod app {
         loop {}
     }
 
-    #[task(local = [matrix, next_line: usize = 0], shared = [image], priority = 2)]
+    #[task(local = [matrix, current_image, next_line: usize = 0], shared = [ next_image, pool ], priority = 2)]
     fn display(mut cx: display::Context, instant: Instant) {
-        // Display line next_line (cx.local.next_line) of
-        // the image (cx.local.image) on the matrix (cx.local.matrix).
-        // All those are mutable references.
-        cx.shared.image.lock(|image| {
-            // Here you can use image, which is a &mut Image,
-            // to display the appropriate row
-            cx.local.matrix.send_row(*cx.local.next_line, image.row(*cx.local.next_line));
-        });
+        // if the display of the led matrix starts over
+        if *cx.local.next_line == 0 {
+            // and a full new image is available
+            cx.shared.next_image.lock( |next_image : &mut Option<Box<Image>> |
+            if let Some(mut image) = next_image.take() {
+                // replace the current_image with next_image
+                swap(&mut image, cx.local.current_image);
+                // discard the old current_image
+                cx.shared.pool.lock( |pool : &mut Pool<Image> |
+                    pool.free(image))
+            });
+        }
+        // display a row
+        cx.local.matrix.send_row(*cx.local.next_line, cx.local.current_image.row(*cx.local.next_line));
         // Increment next_line up to 7 and wraparound to 0
         *cx.local.next_line = (*cx.local.next_line + 1)%8;
         // Spawn the display of the next row
@@ -118,10 +134,10 @@ mod app {
         display::spawn_at(next_display, next_display).unwrap();
     }
 
-    #[task(binds = USART1, local = [usart1_rx, next_image, next_pos: usize = 0], shared = [image])]
+    #[task(binds = USART1, local = [usart1_rx, rx_image, next_pos: usize = 0], shared = [ pool, next_image])]
     fn receive_byte(mut cx: receive_byte::Context) {
         let next_pos: &mut usize = cx.local.next_pos;
-        let next_image: &mut Image = cx.local.next_image;
+        let rx_image: &mut Box<Image> = cx.local.rx_image;
         if let Ok(b) = cx.local.usart1_rx.read() {
             // Handle the incoming byte according to the SE203 protocol
             // and update next_image
@@ -133,15 +149,25 @@ mod app {
             if *next_pos == 8 * 8 * 3 {
                 return;
             }
-            next_image.as_mut()[*next_pos] = b;
+            rx_image.as_mut()[*next_pos] = b;
             *next_pos += 1;
             // If the received image is complete, make it available to
             // the display task.
             if *next_pos == 8 * 8 * 3 {
-                cx.shared.image.lock(|image: &mut Image| {
-                    // Replace the image content by the new one, for example
-                    // by swapping them, and reset next_pos
-                    core::mem::swap(image, next_image);
+                cx.shared.next_image.lock(|next_image: &mut Option<Box<Image>>| {
+                    // if some image was already ready to be displayed
+                    if let Some(image) = next_image.take() {
+                        // discard it
+                        cx.shared.pool.lock(|pool: &mut Pool<Image>| {
+                            pool.free(image);
+                        })
+                    }
+                    // Obtain a new future_image from the pool and swap it with rx_image
+                    cx.shared.pool.lock(|pool: &mut Pool<Image>| {
+                        let mut future_image: Box<Image> = pool.alloc().unwrap().init(Image::default());
+                        swap(&mut future_image, rx_image);
+                        next_image.replace(future_image);
+                    });
                 });
             }
         }

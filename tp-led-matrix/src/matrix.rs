@@ -122,14 +122,15 @@ impl Matrix {
 
         // Send the pixels
         for i in 0..8 {
-            self.send_byte(pixels[7-i].b);
-            self.send_byte(pixels[7-i].g);
-            self.send_byte(pixels[7-i].r);
+            let pixel = pixels[7-i].gamma_correct();
+            self.send_byte(pixel.b);
             if i == 6 {
                 // Deactivate the previous row
                 let previous_row = if row == 0 { 7 } else { row - 1 };
                 self.row(previous_row, PinState::Low);
             }
+            self.send_byte(pixel.g);
+            self.send_byte(pixel.r);
         }
 
         // Activate the new row
