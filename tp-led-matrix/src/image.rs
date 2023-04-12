@@ -24,6 +24,19 @@ impl Color {
         Color { r, g, b }
     }
 
+    pub fn base_color(color: u32) -> Color {
+        let color = color%6;
+        match color {
+            0 => RED,
+            1 => GREEN,
+            2 => BLUE,
+            3 => Color::new(255, 255, 0),
+            4 => Color::new(0, 255, 255),
+            5 => Color::new(255, 0, 255),
+            _ => unreachable!(),
+        }
+    } 
+
     pub fn gamma_correct(&self) -> Self {
         Color::new(
             crate::gamma::gamma_correct(self.r),

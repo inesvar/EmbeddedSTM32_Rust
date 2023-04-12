@@ -197,17 +197,12 @@ mod app {
                 *cx.local.last_changes = *changes;
             } else { 
                 cx.shared.pool.lock(|pool: &mut Pool<Image>| {
-                    // otherwise, build a gradient
+                    // otherwise
                     let mut gradient: Box<Image> = pool.alloc().unwrap().init(Image::default());
-                    // in the right color
-                    match cx.local.color_index {
-                        0 => *gradient = Image::gradient(BLUE),
-                        1 => *gradient = Image::gradient(GREEN),
-                        2 => *gradient = Image::gradient(RED),
-                        _ => unreachable!(),
-                    };
+                    // build a shape in the right color
+                    *gradient = Image::draw_shape(*cx.local.color_index, Color::base_color(*cx.local.color_index).into());
                     // increment the color_index
-                    *cx.local.color_index = (*cx.local.color_index + 1)%3;
+                    *cx.local.color_index = *cx.local.color_index + 1;
                     // and set the next_image
                     cx.shared.next_image.lock(|next_image: &mut Option<Box<Image>>|{
                         if let Some(mut set_image) = next_image.take() {
