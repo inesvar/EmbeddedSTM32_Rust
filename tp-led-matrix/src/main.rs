@@ -13,7 +13,7 @@ use core::mem::{swap, MaybeUninit};
 use heapless::pool::{Box, Node, Pool};
 
 const NSHAPES: u32 = 2;
-const NCOLORS: u32 = 16;
+const NCOLORS: u32 = 15;
 
 #[rtic::app(device = pac, dispatchers = [USART2, USART3])]
 mod app {

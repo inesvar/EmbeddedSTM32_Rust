@@ -18,28 +18,28 @@ impl From<Color> for Rgb888 {
 }
 
 impl Color {
-    pub fn purple_to_green_shades(color: u32) -> Color {
+    pub fn color_cycle(color: u32) -> Color {
         match color {
-        // hues : from 0 to 160 and back
+        // hues precised
         // chroma : 150
         // lightness : 80
+        // using https://jackw01.github.io/HCLPicker/
         // and then rgb divided by 5
-            0 => Color::new(51, 0, 41), //0
-            1 => Color::new(51, 0, 8), //35
-            2 => Color::new(51, 13, 0), //47
-            3 => Color::new(51, 25, 0), //60
-            4 => Color::new(51, 35, 0), //80
-            5 => Color::new(35, 43, 0), //105
-            6 => Color::new(16, 26, 0), //120
-            7 => Color::new(0, 48, 0), //140
-            8 => Color::new(0, 49, 18), //160
-            9 => Color::new(0, 48, 0), //140
-            10 => Color::new(16, 26, 0), //120
-            11 => Color::new(35, 43, 0), //105
-            12 => Color::new(51, 35, 0), //80
-            13 => Color::new(51, 25, 0), //60
-            14 => Color::new(51, 13, 0), //47
-            15 => Color::new(51, 0, 8), //35
+            0 => Color::new(51, 0, 51), //340
+            1 => Color::new(51, 0, 23), //20
+            2 => Color::new(51, 0, 8), //35
+            3 => Color::new(51, 13, 0), //47
+            4 => Color::new(51, 25, 0), //60
+            5 => Color::new(51, 36, 0), //82
+            6 => Color::new(40, 42, 0), //100
+            7 => Color::new(24, 45, 0), //115
+            8 => Color::new(2, 46, 0),
+            9 => Color::new(0, 49, 12), //155
+            10 => Color::new(0, 50, 35),
+            11 => Color::new(0, 35, 39), 
+            12 => Color::new(0, 15, 51), 
+            13 => Color::new(17, 5, 45), 
+            14 => Color::new(35, 10, 51),
             _ => unreachable!(),
         }
     } 
@@ -47,10 +47,10 @@ impl Color {
 
 impl Image {
     pub fn draw_shape(shape: u32, color1: u32, color2: u32, color3: u32, color4: u32) -> Self {
-        let color1 = Color::purple_to_green_shades(color1).into();
-        let color2 = Color::purple_to_green_shades(color2).into();
-        let color3 = Color::purple_to_green_shades(color3).into();
-        let color4 = Color::purple_to_green_shades(color4).into();
+        let color1 = Color::color_cycle(color1).into();
+        let color2 = Color::color_cycle(color2).into();
+        let color3 = Color::color_cycle(color3).into();
+        let color4 = Color::color_cycle(color4).into();
         let mut image = Image::default();
         match shape {
             0 => {let rectangle= Rectangle::new(Point::new(5, 5), Size::new(3,3));
