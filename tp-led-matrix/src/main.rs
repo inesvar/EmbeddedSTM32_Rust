@@ -5,12 +5,13 @@ use stm32l4xx_hal::{pac, pac::USART1, prelude::*};
 use stm32l4xx_hal::serial::{Config, Event, Rx, Serial};
 use panic_probe as _;
 use defmt_rtt as _;
-
+use dwt_systick_monotonic::DwtSystick;
+use dwt_systick_monotonic::ExtU32;
+use core::mem::{swap, MaybeUninit};
+use heapless::pool::{Box, Node, Pool};
 
 pub use tp_led_matrix::image::*;
 use tp_led_matrix::matrix::Matrix;
-use core::mem::{swap, MaybeUninit};
-use heapless::pool::{Box, Node, Pool};
 
 const NCOLORS: u32 = 15;
 
@@ -18,8 +19,6 @@ const NCOLORS: u32 = 15;
 mod app {
 
     use super::*;
-    use dwt_systick_monotonic::DwtSystick;
-    use dwt_systick_monotonic::ExtU32;
 
     #[shared]
     struct Shared {
