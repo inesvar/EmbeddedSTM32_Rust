@@ -12,7 +12,6 @@ use tp_led_matrix::matrix::Matrix;
 use core::mem::{swap, MaybeUninit};
 use heapless::pool::{Box, Node, Pool};
 
-const NSHAPES: u32 = 2;
 const NCOLORS: u32 = 15;
 
 #[rtic::app(device = pac, dispatchers = [USART2, USART3])]
@@ -192,37 +191,39 @@ mod app {
         *changes += 1)
     }
 
-    #[task(shared = [changes, pool, next_image], local = [last_changes: u32 = 0, color_index: u32 = 0], priority = 10)]
+    #[task(shared = [changes, pool, next_image], local = [last_changes: u32 = 0, offset: u32 = 0], priority = 10)]
     fn screensaver(mut cx: screensaver::Context, instant: Instant) {
         cx.shared.changes.lock(|changes: &mut u32|
             // if a new image was received, update last_changes and return
             if changes != cx.local.last_changes {
                 *cx.local.last_changes = *changes;
+                *cx.local.offset = 0;
+                // Spawn after a second to see if the transmission is done
+                let next_display :Instant = instant + 1.secs();
+                screensaver::spawn_at(next_display, next_display).unwrap();
             } else { 
                 cx.shared.pool.lock(|pool: &mut Pool<Image>| {
                     // otherwise
-                    let mut gradient: Box<Image> = pool.alloc().unwrap().init(Image::default());
-                    // build a shape in the right color
-                    let shape = (*cx.local.color_index)%NSHAPES;
-                    let color1 = (*cx.local.color_index/NSHAPES)%NCOLORS;
-                    *gradient = Image::draw_shape(shape, color1, (color1 + 1)%NCOLORS, (color1 + 2)%NCOLORS, (color1 + 3)%NCOLORS);
+                    let mut text_image: Box<Image> = pool.alloc().unwrap().init(Image::default());
+                    *text_image =Image::show_text("Hello SE202 !", 
+                                *cx.local.offset, (*cx.local.offset/5)%NCOLORS);
                     // increment the color_index
-                    *cx.local.color_index = *cx.local.color_index + 1;
+                    *cx.local.offset = *cx.local.offset + 1;
                     // and set the next_image
                     cx.shared.next_image.lock(|next_image: &mut Option<Box<Image>>|{
                         if let Some(mut set_image) = next_image.take() {
                             // potentially deallocating the previous one
-                            swap(&mut set_image, &mut gradient);
-                            pool.free(gradient);
+                            swap(&mut set_image, &mut text_image);
+                            pool.free(text_image);
                         } else {
-                            next_image.replace(gradient);
+                            next_image.replace(text_image);
                         }
                     })
                 });
+                // Spawn to update the text
+                let next_display :Instant = instant + 1.secs()/17;
+                screensaver::spawn_at(next_display, next_display).unwrap();
             });
-        // Spawn the display of the next row
-        let next_display :Instant = instant + 1.secs();
-        screensaver::spawn_at(next_display, next_display).unwrap();
     }
 
     #[monotonic(binds = SysTick, default = true)]

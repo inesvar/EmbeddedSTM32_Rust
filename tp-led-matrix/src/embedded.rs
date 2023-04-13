@@ -1,7 +1,10 @@
-use embedded_graphics::Pixel;
+use embedded_graphics::{Pixel, Drawable};
+use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::pixelcolor::Rgb888;
 use embedded_graphics::prelude::{DrawTarget, OriginDimensions, RgbColor, Size, Point};
 use embedded_graphics::primitives::{Rectangle, StyledDrawable, PrimitiveStyle};
+use embedded_graphics::text::Text;
+use ibm437::IBM437_8X8_REGULAR;
 use core::convert::Infallible;
 use crate::image::*;
 
@@ -40,6 +43,8 @@ impl Color {
             12 => Color::new(0, 15, 51), 
             13 => Color::new(17, 5, 45), 
             14 => Color::new(35, 10, 51),
+            //unused in the cycle
+            15 => Color::new(51, 51, 51), 
             _ => unreachable!(),
         }
     } 
@@ -73,6 +78,18 @@ impl Image {
         }
         image
     }
+
+    pub fn show_text(text: &str, index: u32, color: u32) -> Self {
+        let mut image = Image::default();
+        let width: u32 = text.chars().count() as u32 * 8 + 8;
+        let index: i32 = (index%width).try_into().unwrap();
+        let point = Point::new(8-index, 6); 
+        let color: Rgb888 = Color::color_cycle(color).into();
+        let text = Text::new(text, point, 
+                    MonoTextStyle::new(&IBM437_8X8_REGULAR, color));
+        text.draw(&mut image).unwrap();
+        image
+    }
 }
 
 impl DrawTarget for Image {
@@ -85,7 +102,7 @@ impl DrawTarget for Image {
         for Pixel(coord, color) in pixels.into_iter() {
             if 0 <= coord.x && coord.x < 8 {
                 if 0 <= coord.y && coord.y < 8 {
-                    self[(coord.x as usize, coord.y as usize)] = color.into();
+                    self[(coord.y as usize, coord.x as usize)] = color.into();
                 }
             }
         }
