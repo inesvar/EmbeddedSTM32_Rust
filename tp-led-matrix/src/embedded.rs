@@ -23,25 +23,7 @@ impl Color {
         // hues : from 0 to 160 and back
         // chroma : 150
         // lightness : 80
-        /*
-            0 => Color::new(255, 0, 205), //0
-            1 => Color::new(255, 0, 41), //35
-            2 => Color::new(255, 64, 0), //47
-            3 => Color::new(255, 124, 0), //60
-            4 => Color::new(255, 176, 0), //80
-            5 => Color::new(175, 214, 0), //105
-            6 => Color::new(82, 228, 0), //120
-            7 => Color::new(0, 240, 0), //140
-            8 => Color::new(0, 246, 92), //160
-            9 => Color::new(0, 240, 0), //140
-            10 => Color::new(82, 228, 0), //120
-            11 => Color::new(175, 214, 0), //105
-            12 => Color::new(255, 176, 0), //80
-            13 => Color::new(255, 124, 0), //60
-            14 => Color::new(255, 64, 0), //47
-            15 => Color::new(255, 0, 41), //35
-            _ => unreachable!(),
-        */
+        // and then rgb divided by 5
             0 => Color::new(51, 0, 41), //0
             1 => Color::new(51, 0, 8), //35
             2 => Color::new(51, 13, 0), //47
