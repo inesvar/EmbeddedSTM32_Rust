@@ -12,6 +12,9 @@ use tp_led_matrix::matrix::Matrix;
 use core::mem::{swap, MaybeUninit};
 use heapless::pool::{Box, Node, Pool};
 
+const NSHAPES: u32 = 2;
+const NCOLORS: u32 = 16;
+
 #[rtic::app(device = pac, dispatchers = [USART2, USART3])]
 mod app {
 
@@ -200,7 +203,9 @@ mod app {
                     // otherwise
                     let mut gradient: Box<Image> = pool.alloc().unwrap().init(Image::default());
                     // build a shape in the right color
-                    *gradient = Image::draw_shape(*cx.local.color_index, Color::base_color(*cx.local.color_index).into());
+                    let shape = (*cx.local.color_index)%NSHAPES;
+                    let color1 = (*cx.local.color_index/NSHAPES)%NCOLORS;
+                    *gradient = Image::draw_shape(shape, color1, (color1 + 1)%NCOLORS, (color1 + 2)%NCOLORS, (color1 + 3)%NCOLORS);
                     // increment the color_index
                     *cx.local.color_index = *cx.local.color_index + 1;
                     // and set the next_image
@@ -215,7 +220,6 @@ mod app {
                     })
                 });
             });
-
         // Spawn the display of the next row
         let next_display :Instant = instant + 1.secs();
         screensaver::spawn_at(next_display, next_display).unwrap();

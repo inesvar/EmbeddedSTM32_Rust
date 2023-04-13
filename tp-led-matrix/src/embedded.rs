@@ -1,9 +1,9 @@
 use embedded_graphics::Pixel;
 use embedded_graphics::pixelcolor::Rgb888;
 use embedded_graphics::prelude::{DrawTarget, OriginDimensions, RgbColor, Size, Point};
-use embedded_graphics::primitives::{Rectangle, Circle, Line, StyledDrawable, PrimitiveStyle};
+use embedded_graphics::primitives::{Rectangle, StyledDrawable, PrimitiveStyle};
 use core::convert::Infallible;
-use crate::image::{Color, Image};
+use crate::image::*;
 
 impl From<Rgb888> for Color {
     fn from(rgb888: Rgb888) -> Self { 
@@ -17,17 +17,76 @@ impl From<Color> for Rgb888 {
      }
 }
 
+impl Color {
+    pub fn purple_to_green_shades(color: u32) -> Color {
+        match color {
+        // hues : from 0 to 160 and back
+        // chroma : 150
+        // lightness : 80
+        /*
+            0 => Color::new(255, 0, 205), //0
+            1 => Color::new(255, 0, 41), //35
+            2 => Color::new(255, 64, 0), //47
+            3 => Color::new(255, 124, 0), //60
+            4 => Color::new(255, 176, 0), //80
+            5 => Color::new(175, 214, 0), //105
+            6 => Color::new(82, 228, 0), //120
+            7 => Color::new(0, 240, 0), //140
+            8 => Color::new(0, 246, 92), //160
+            9 => Color::new(0, 240, 0), //140
+            10 => Color::new(82, 228, 0), //120
+            11 => Color::new(175, 214, 0), //105
+            12 => Color::new(255, 176, 0), //80
+            13 => Color::new(255, 124, 0), //60
+            14 => Color::new(255, 64, 0), //47
+            15 => Color::new(255, 0, 41), //35
+            _ => unreachable!(),
+        */
+            0 => Color::new(51, 0, 41), //0
+            1 => Color::new(51, 0, 8), //35
+            2 => Color::new(51, 13, 0), //47
+            3 => Color::new(51, 25, 0), //60
+            4 => Color::new(51, 35, 0), //80
+            5 => Color::new(35, 43, 0), //105
+            6 => Color::new(16, 26, 0), //120
+            7 => Color::new(0, 48, 0), //140
+            8 => Color::new(0, 49, 18), //160
+            9 => Color::new(0, 48, 0), //140
+            10 => Color::new(16, 26, 0), //120
+            11 => Color::new(35, 43, 0), //105
+            12 => Color::new(51, 35, 0), //80
+            13 => Color::new(51, 25, 0), //60
+            14 => Color::new(51, 13, 0), //47
+            15 => Color::new(51, 0, 8), //35
+            _ => unreachable!(),
+        }
+    } 
+}
+
 impl Image {
-    pub fn draw_shape(shape: u32, color: Rgb888) -> Self {
+    pub fn draw_shape(shape: u32, color1: u32, color2: u32, color3: u32, color4: u32) -> Self {
+        let color1 = Color::purple_to_green_shades(color1).into();
+        let color2 = Color::purple_to_green_shades(color2).into();
+        let color3 = Color::purple_to_green_shades(color3).into();
+        let color4 = Color::purple_to_green_shades(color4).into();
         let mut image = Image::default();
-        let shape = (shape / 6)%3;
         match shape {
-            0 => {let line = Line::new(Point::new(0, 0), Point::new(7, 7));
-                line.draw_styled(&PrimitiveStyle::with_stroke(color, 1), &mut image).unwrap();},
-            1 => {let rectangle= Rectangle::new(Point::new(2, 1), Size::new(4,6));
-                    rectangle.draw_styled(&PrimitiveStyle::with_stroke(color, 1), &mut image).unwrap();},
-            2 => {let circle = Circle::new(Point::new(1, 1), 6);
-                        circle.draw_styled(&PrimitiveStyle::with_stroke(color, 1), &mut image).unwrap();},
+            0 => {let rectangle= Rectangle::new(Point::new(5, 5), Size::new(3,3));
+                rectangle.draw_styled(&PrimitiveStyle::with_stroke(color1, 1), &mut image).unwrap();
+                let rectangle= Rectangle::new(Point::new(3, 3), Size::new(3, 3));
+                rectangle.draw_styled(&PrimitiveStyle::with_stroke(color2, 1), &mut image).unwrap();
+                let rectangle= Rectangle::new(Point::new(1, 1), Size::new(3, 3));
+                rectangle.draw_styled(&PrimitiveStyle::with_stroke(color3, 1), &mut image).unwrap();
+                let rectangle= Rectangle::new(Point::new(-1, -1), Size::new(3, 3));
+                rectangle.draw_styled(&PrimitiveStyle::with_stroke(color4, 1), &mut image).unwrap();},
+            1 => {let rectangle= Rectangle::new(Point::new(6, 6), Size::new(3, 3));
+                rectangle.draw_styled(&PrimitiveStyle::with_stroke(color1, 1), &mut image).unwrap();
+                let rectangle= Rectangle::new(Point::new(4, 4), Size::new(3, 3));
+                rectangle.draw_styled(&PrimitiveStyle::with_stroke(color2, 1), &mut image).unwrap();
+                let rectangle= Rectangle::new(Point::new(2, 2), Size::new(3, 3));
+                rectangle.draw_styled(&PrimitiveStyle::with_stroke(color3, 1), &mut image).unwrap();
+                let rectangle= Rectangle::new(Point::new(0, 0), Size::new(3, 3));
+                rectangle.draw_styled(&PrimitiveStyle::with_stroke(color4, 1), &mut image).unwrap();},
             _ => unreachable!(),
         }
         image
