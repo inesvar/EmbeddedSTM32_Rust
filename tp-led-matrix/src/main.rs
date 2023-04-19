@@ -87,7 +87,7 @@ mod app {
         // Create the pool 
         let pool: Pool<Image> = Pool::new();
         unsafe {
-            static mut MEMORY: MaybeUninit<[Node<Image>; 4]> = MaybeUninit::uninit();
+            static mut MEMORY: MaybeUninit<[Node<Image>; 3]> = MaybeUninit::uninit();
             pool.grow_exact(&mut MEMORY);   // static mut access is unsafe
         }
 
